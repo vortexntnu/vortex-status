@@ -2,6 +2,9 @@
 #include <stdint.h>
 #include <unistd.h>
 
+
+
+
 static int i2c_fd;
 
 static int i2c_write_register(uint8_t reg, uint16_t value) {
@@ -41,7 +44,7 @@ static inline uint8_t start_conversion(uint16_t config) {
 }
 
 int i2c_psm_init() {
-    char* i2c_device = "/dev/i2c-7";
+    const char* i2c_device = I2C_DEVICE_PATH;
     if ((i2c_fd = open(i2c_device, O_RDWR)) < 0) {
         perror("Failed to open I2C device!");
         return -1;

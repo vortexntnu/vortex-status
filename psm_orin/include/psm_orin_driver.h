@@ -33,6 +33,14 @@
 #define CURRENT_OFFSET      0.6004
 #define CURRENT_SENSITIVITY 0.0255
 
+
+#define I2C_BUS 7
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#define I2C_DEVICE_PATH "/dev/i2c-" TOSTRING(I2C_BUS)
+
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
