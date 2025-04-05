@@ -1,5 +1,5 @@
-#ifndef CANFD_H
-#define CANFD_H
+#ifndef CAN_INTERFACE_DRIVER_H
+#define CAN_INTERFACE_DRIVER_H
 
 #ifdef __cplusplus
 
@@ -56,4 +56,4 @@ void set_can_filter(uint16_t start_id, uint16_t id_mask);
 
 #endif
 
-#endif // !CANFD_H
+#endif // !CAN_INTERFACE_DRIVER_H

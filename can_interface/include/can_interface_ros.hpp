@@ -1,21 +1,29 @@
 #ifndef CAN_INTERFACE_HPP
 #define CAN_INTERFACE_HPP
 
+#include <spdlog/spdlog.h>
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <ranges>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <sensor_msgs/msg/joy.hpp>
 #include <std_msgs/msg/int16_multi_array.hpp>
 #include <string>
+#include <thread>
 #include <vector>
-#include <algorithm>
-#include <ranges>
 #include "can_interface_driver.h"
+#include "can_interface_utils.hpp"
+
+#define NUM_ANGLES 3
 
 class CANInterface : public rclcpp::Node {
    public:
     CANInterface();
+
+    ~CANInterface();
 
    private:
     /**
@@ -33,19 +41,23 @@ class CANInterface : public rclcpp::Node {
 
     void encoder_angles_callback();
 
-    std::uint16_t joy_to_pwm(const double joy_value);
+    void can_receive_loop();
+    void on_can_message(const CANFD_Message& msg);
     /**
      * @brief Convert a vector of PWM values to a ROS message.
      * @param vec The vector of PWM values.
      * @return The ROS message.
      */
-    std_msgs::msg::Int16MultiArray vec_to_msg(std::vector<std::uint16_t> vec);
+    std_msgs::msg::Int16MultiArray array_to_msg(
+        std::array<std::uint16_t, 3> arr);
 
     std::string joy_topic_;
     std::string pwm_topic_;
     int pwm_gain_;
     int pwm_idle_;
     std::string can_interface_;
+    std::thread can_thread_;
+    bool running_;
 
     CANFD_Message canMsg;
 

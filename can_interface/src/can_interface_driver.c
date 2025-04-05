@@ -1,5 +1,5 @@
-#include "canfd.h"
 #include <errno.h>
+#include "can_interface_driver.h"
 #include <fcntl.h>
 #include <linux/can.h>
 #include <linux/can/bcm.h>
@@ -89,7 +89,7 @@ int canfd_send(const CANFD_Message *msg) {
   return 0;
 }
 
-int canfd_receive(CANFD_Message *msg, int timeout_ms) {
+int canfd_recieve(CANFD_Message *msg, int timeout_ms) {
   struct canfd_frame frame;
   struct timeval timeout;
   fd_set read_fds;

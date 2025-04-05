@@ -1,6 +1,6 @@
 #include "can_interface_ros.hpp"
-#include <spdlog/spdlog.h>
-#include "canfd.h"
+#include "can_interface_driver.h"
+#include "can_interface_utils.hpp"
 
 CANInterface::CANInterface() : Node("can_interface_node") {
     extract_parameters();
@@ -13,9 +13,16 @@ CANInterface::CANInterface() : Node("can_interface_node") {
     watchdog_timer_ = this->create_wall_timer(
         std::chrono::milliseconds(500),
         std::bind(&CANInterface::encoder_angles_callback, this));
+    can_thread_ = std::thread(&CANInterface::can_receive_loop, this);
 
     last_msg_time_ = this->now();
     spdlog::info("CAN interface node started");
+}
+CANInterface::~CANInterface() {
+    running_ = false;
+    if (can_thread_.joinable()) {
+        can_thread_.join();
+    }
 }
 
 void CANInterface::extract_parameters() {
@@ -32,36 +39,51 @@ void CANInterface::extract_parameters() {
     this->can_interface_ = this->get_parameter("can.interface").as_string();
 }
 
-
 void CANInterface::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
+    std::array<uint16_t, 3> pwm_values;
     double shoulder_value = msg->axes[1];
     double wrist_value = msg->axes[0];
     double grip_value = msg->axes[3];
 
-    std::uint16_t shoulder_pwm = this->joy_to_pwm(shoulder_value);
-    std::uint16_t wrist_pwm = this->joy_to_pwm(wrist_value);
-    std::uint16_t grip_pwm = this->joy_to_pwm(grip_value);
+    pwm_values.at(0) = joy_to_pwm(pwm_idle_, pwm_gain_, shoulder_value);
+    pwm_values.at(1) = joy_to_pwm(pwm_idle_, pwm_gain_, wrist_value);
+    pwm_values.at(2) = joy_to_pwm(pwm_idle_, pwm_gain_, grip_value);
 
-    canMsg.data[0] = (shoulder_pwm);
-    canMsg.data[1] = (wrist_pwm);
-    canMsg.data[2] = (grip_pwm);
+    canMsg.id = 0x46B;
+    canMsg.is_extended = false;
+    canMsg.is_fd = true;
 
-    canMsg.id = 0x46C;
+    auto joined_bytes = pwm_values |
+                        std::views::transform([](std::uint16_t pwm) {
+                            return pwm_to_can_data(pwm);
+                        }) |
+                        std::views::join;
 
-    std_msgs::msg::Int16MultiArray pwm_msg = vec_to_msg(pwm_values);
+    std::ranges::copy(joined_bytes, canMsg.data);
+
+    canMsg.length = pwm_values.size() * 2;
+
+    std_msgs::msg::Int16MultiArray pwm_msg = array_to_msg(pwm_values);
     pwm_pub_->publish(pwm_msg);
 
     canfd_send(&canMsg);
 
     if (msg->buttons[0]) {
-        // todo
+        canMsg.id = 0x469;
+        canMsg.data[0] = 0;
+        canMsg.length = 1;
+        canfd_send(&canMsg);
+
     } else if (msg->buttons[1]) {
-        // todo
+        canMsg.id = 0x46A;
+        canMsg.data[0] = 0;
+        canMsg.length = 1;
+        canfd_send(&canMsg);
     }
 }
 
 void CANInterface::encoder_angles_callback() {
-    std::vector<double> angles = gripper_driver_->encoder_read();
+    std::vector<double> angles;
     if (angles.empty()) {
         return;
     }
@@ -75,13 +97,42 @@ void CANInterface::encoder_angles_callback() {
     joint_state_pub_->publish(joint_state_msg);
 }
 
-std_msgs::msg::Int16MultiArray CANInterface::vec_to_msg(
-    std::vector<std::uint16_t> vec) {
+std_msgs::msg::Int16MultiArray CANInterface::array_to_msg(
+    std::array<std::uint16_t, 3> arr) {
     std_msgs::msg::Int16MultiArray msg;
-    for (std::uint16_t value : vec) {
-        msg.data.push_back(value);
-    }
+    std::ranges::copy(arr, std::back_inserter(msg.data));
     return msg;
+}
+void CANInterface::can_receive_loop() {
+    // Loop while the node is running.
+    while (running_) {
+        CANFD_Message msg;
+        // Wait for a CAN message with a timeout (e.g., 1000 ms).
+        int ret = canfd_recieve(&msg, 1000);
+        if (ret == 0) {
+            // Call your callback to process the received CAN message.
+            // You might convert the raw CAN message to a ROS message here.
+            on_can_message(msg);
+        }
+        // If ret < 0, either timeout or error occurred.
+    }
+}
+
+void CANInterface::on_can_message(const CANFD_Message& msg) {
+    switch (msg.id) {
+        case ENCODER_ANGLES:
+            std::vector<double> angles;
+            angles = convert_angles_to_radians(msg.data);
+
+            auto joint_state_msg = sensor_msgs::msg::JointState();
+
+            joint_state_msg.header.stamp = this->now();
+            joint_state_msg.name = {"shoulder", "wrist", "grip"};
+            joint_state_msg.position = angles;
+
+            joint_state_pub_->publish(joint_state_msg);
+            break;
+    }
 }
 
 int main(int argc, char* argv[]) {
