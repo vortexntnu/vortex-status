@@ -9,13 +9,13 @@ CANInterface::CANInterface() : Node("can_interface_node") {
         std::bind(&CANInterface::joy_callback, this, std::placeholders::_1));
     pwm_pub_ =
         this->create_publisher<std_msgs::msg::Int16MultiArray>(pwm_topic_, 10);
+    joint_state_pub_ = this->create_publisher<sensor_msgs::msg::JointState>(
+        joint_state_topic_, 10);
 
-    watchdog_timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(500),
-        std::bind(&CANInterface::encoder_angles_callback, this));
     can_thread_ = std::thread(&CANInterface::can_receive_loop, this);
 
     last_msg_time_ = this->now();
+    canfd_init(can_interface_.c_str());
     spdlog::info("CAN interface node started");
 }
 CANInterface::~CANInterface() {
@@ -31,11 +31,13 @@ void CANInterface::extract_parameters() {
     this->declare_parameter<int>("pwm.gain");
     this->declare_parameter<int>("pwm.idle");
     this->declare_parameter<std::string>("can.interface");
+    this->declare_parameter<std::string>("topics.joint_state_gripper");
 
     this->joy_topic_ = this->get_parameter("topics.joy").as_string();
     this->pwm_topic_ = this->get_parameter("topics.pwm").as_string();
     this->pwm_gain_ = this->get_parameter("pwm.gain").as_int();
     this->pwm_idle_ = this->get_parameter("pwm.idle").as_int();
+    this->joint_state_topic_ = this->get_parameter("topics.joint_state_gripper").as_string();
     this->can_interface_ = this->get_parameter("can.interface").as_string();
 }
 
@@ -49,7 +51,7 @@ void CANInterface::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
     pwm_values.at(1) = joy_to_pwm(pwm_idle_, pwm_gain_, wrist_value);
     pwm_values.at(2) = joy_to_pwm(pwm_idle_, pwm_gain_, grip_value);
 
-    canMsg.id = 0x46B;
+    canMsg.id = SET_GRIPPER_PWM;
     canMsg.is_extended = false;
     canMsg.is_fd = true;
 
@@ -69,32 +71,17 @@ void CANInterface::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
     canfd_send(&canMsg);
 
     if (msg->buttons[0]) {
-        canMsg.id = 0x469;
+        canMsg.id = STOP_GRIPPER;
         canMsg.data[0] = 0;
         canMsg.length = 1;
         canfd_send(&canMsg);
 
     } else if (msg->buttons[1]) {
-        canMsg.id = 0x46A;
+        canMsg.id = START_GRIPPER;
         canMsg.data[0] = 0;
         canMsg.length = 1;
         canfd_send(&canMsg);
     }
-}
-
-void CANInterface::encoder_angles_callback() {
-    std::vector<double> angles;
-    if (angles.empty()) {
-        return;
-    }
-
-    auto joint_state_msg = sensor_msgs::msg::JointState();
-
-    joint_state_msg.header.stamp = this->now();
-    joint_state_msg.name = {"shoulder", "wrist", "grip"};
-    joint_state_msg.position = angles;
-
-    joint_state_pub_->publish(joint_state_msg);
 }
 
 std_msgs::msg::Int16MultiArray CANInterface::array_to_msg(
@@ -104,17 +91,12 @@ std_msgs::msg::Int16MultiArray CANInterface::array_to_msg(
     return msg;
 }
 void CANInterface::can_receive_loop() {
-    // Loop while the node is running.
     while (running_) {
         CANFD_Message msg;
-        // Wait for a CAN message with a timeout (e.g., 1000 ms).
         int ret = canfd_recieve(&msg, 1000);
         if (ret == 0) {
-            // Call your callback to process the received CAN message.
-            // You might convert the raw CAN message to a ROS message here.
             on_can_message(msg);
         }
-        // If ret < 0, either timeout or error occurred.
     }
 }
 

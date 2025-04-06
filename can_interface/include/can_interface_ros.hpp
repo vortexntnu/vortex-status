@@ -39,7 +39,6 @@ class CANInterface : public rclcpp::Node {
      */
     void joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
 
-    void encoder_angles_callback();
 
     void can_receive_loop();
     void on_can_message(const CANFD_Message& msg);
@@ -55,6 +54,7 @@ class CANInterface : public rclcpp::Node {
     std::string pwm_topic_;
     int pwm_gain_;
     int pwm_idle_;
+    std::string joint_state_topic_;
     std::string can_interface_;
     std::thread can_thread_;
     bool running_;

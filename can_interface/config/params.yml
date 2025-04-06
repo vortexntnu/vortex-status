@@ -3,6 +3,8 @@
     topics:
       joy: "/joy"
       pwm: "/gripper_pwm"
+      join_state: "/join_state_gripper"
+
 
     pwm:
       gain: 200 # value range: pwm_idle +/- pwm_gain
