@@ -122,22 +122,6 @@ int canfd_recieve(CANFD_Message *msg, int timeout_ms) {
   return 0;
 }
 
-void canfd_recieve_handler(CANFD_Message *msg) {
-  switch (msg->id) {
-  case 0x0:
-    break;
-  case 0x150:
-    break;
-  case ENCODER_ANGLES:
-    break;
-  case TEMP:
-    break;
-  case PRESSURE:
-    break;
-  default:
-    break;
-  }
-}
 
 void canfd_close() {
   if (sock >= 0) {

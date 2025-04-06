@@ -1,6 +1,4 @@
 #include "can_interface_ros.hpp"
-#include "can_interface_driver.h"
-#include "can_interface_utils.hpp"
 
 CANInterface::CANInterface() : Node("can_interface_node") {
     extract_parameters();
@@ -28,16 +26,17 @@ CANInterface::~CANInterface() {
 void CANInterface::extract_parameters() {
     this->declare_parameter<std::string>("topics.joy");
     this->declare_parameter<std::string>("topics.pwm");
+    this->declare_parameter<std::string>("topics.joint_state");
     this->declare_parameter<int>("pwm.gain");
     this->declare_parameter<int>("pwm.idle");
     this->declare_parameter<std::string>("can.interface");
-    this->declare_parameter<std::string>("topics.joint_state_gripper");
 
     this->joy_topic_ = this->get_parameter("topics.joy").as_string();
+    this->pwm_idle_ = this->get_parameter("pwm.idle").as_int();
+    this->joint_state_topic_ =
+        this->get_parameter("topics.joint_state").as_string();
     this->pwm_topic_ = this->get_parameter("topics.pwm").as_string();
     this->pwm_gain_ = this->get_parameter("pwm.gain").as_int();
-    this->pwm_idle_ = this->get_parameter("pwm.idle").as_int();
-    this->joint_state_topic_ = this->get_parameter("topics.joint_state_gripper").as_string();
     this->can_interface_ = this->get_parameter("can.interface").as_string();
 }
 
