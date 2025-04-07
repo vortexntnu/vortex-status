@@ -71,7 +71,7 @@ int read_measurements(double* voltage, double* current) {
     int16_t raw_voltage;
     if (i2c_read_register(REG_CONV, (uint16_t*)&raw_voltage))
         return -1;
-    // Aproximately 0.8 V lost over diode
+    // Approximately 0.8 V lost over diode
     *voltage = ((raw_voltage * VOLTAGE_RANGE) / 32768.0) * VOLTAGE_SCALE + 0.8;
 
     config = default_config;
