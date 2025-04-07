@@ -1,4 +1,6 @@
 #include "can_interface_ros.hpp"
+#include <spdlog/common.h>
+#include <spdlog/spdlog.h>
 
 CANInterface::CANInterface() : Node("can_interface_node") {
     extract_parameters();
@@ -102,8 +104,18 @@ void CANInterface::can_receive_loop() {
 void CANInterface::on_can_message(const CANFD_Message& msg) {
     switch (msg.id) {
         case ENCODER_ANGLES:
+            uint8_t encoder_status = msg.data[6];
             std::vector<double> angles;
             angles = convert_angles_to_radians(msg.data);
+
+            if (encoder_status > 0) {
+                for (int i = 0; i < NUM_ANGLES; i++) {
+                    if (encoder_status & (1 << i)) {
+                        angles.at(i) = -1;
+                        spdlog::error("Reading encoder {} failed", i);
+                    }
+                }
+            }
 
             auto joint_state_msg = sensor_msgs::msg::JointState();
 
