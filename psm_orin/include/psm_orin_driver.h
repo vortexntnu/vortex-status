@@ -29,6 +29,7 @@
 
 #define VOLTAGE_SCALE       11.236
 #define VOLTAGE_RANGE       6.144
+#define DIODE_LOSS          0.8
 // #define CURRENT_OFFSET      0.595
 #define CURRENT_OFFSET      0.6004
 #define CURRENT_SENSITIVITY 0.0255
